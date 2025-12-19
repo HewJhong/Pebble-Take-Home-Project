@@ -19,17 +19,21 @@ app.use(express.json());
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
-  process.env.FRONTEND_URL
+  'http://localhost:5000',
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
+
+    // In production, allow any origin from Railway or localhost
+    if (allowedOrigins.indexOf(origin) !== -1 || origin?.includes('railway.app')) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all origins in production, or customize as needed
+      callback(null, true); // Allow all origins as fallback
     }
   },
   credentials: true
