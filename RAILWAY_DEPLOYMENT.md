@@ -1,6 +1,15 @@
 # Railway Deployment Guide
 
-This guide will help you deploy the PebbleTech Sales System to Railway.
+This guide will help you deploy the CommissionFlow system to Railway.
+
+## ⚠️ Common Deployment Error
+
+If you see this error:
+```
+Error: The `uri` parameter to `openUri()` must be a string, got "undefined"
+```
+
+**Solution:** You forgot to set the `MONGO_URI` environment variable in Railway's dashboard. See step 2 below.
 
 ## Prerequisites
 
@@ -19,13 +28,14 @@ This guide will help you deploy the PebbleTech Sales System to Railway.
 
 ### 2. Configure Environment Variables
 
-In your Railway project dashboard, add the following environment variables:
+**CRITICAL: You MUST set these in Railway's dashboard, not in a .env file**
+
+Go to your Railway project → Variables tab and add:
 
 #### Required Variables:
 
 ```
 NODE_ENV=production
-PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_secure_random_secret_key
 ```
@@ -38,9 +48,18 @@ FRONTEND_URL=https://your-app.railway.app
 ```
 
 **Important Notes:**
-- `MONGO_URI`: Use Railway's MongoDB plugin or MongoDB Atlas connection string
-- `JWT_SECRET`: Generate a secure random string (at least 32 characters)
-- `PORT`: Railway automatically assigns this, but 5000 is the default fallback
+- `MONGO_URI`: **MUST be set in Railway dashboard** - Use Railway's MongoDB plugin or MongoDB Atlas connection string
+- `JWT_SECRET`: Generate a secure random string (at least 32 characters). Example: `openssl rand -base64 32`
+- `PORT`: Railway automatically sets this - **DO NOT set manually**
+- `.env` files are **NOT** deployed to Railway - all variables must be in the Railway dashboard
+
+**How to add variables in Railway:**
+1. Go to your project in Railway dashboard
+2. Click on your service
+3. Go to the "Variables" tab
+4. Click "New Variable"
+5. Add each variable name and value
+6. Click "Add" for each one
 
 ### 3. Add MongoDB Database
 
