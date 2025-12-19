@@ -287,7 +287,7 @@ This project is licensed under the MIT License.
 
 ## 👥 Authors
 
-- **PebbleTech** - Initial work
+- **Jin Hong** - Initial work
 
 ## 🙏 Acknowledgments
 
