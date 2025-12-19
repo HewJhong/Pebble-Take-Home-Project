@@ -57,11 +57,12 @@ app.use('/api/activities', activityRoutes);
 
 // Serve static files from the React app in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  const clientDistPath = path.join(__dirname, '../client/dist');
+  app.use(express.static(clientDistPath));
 
   // Handle React routing, return all requests to React app
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
+    res.sendFile(path.join(clientDistPath, 'index.html'));
   });
 } else {
   app.get('/', (req, res) => {
