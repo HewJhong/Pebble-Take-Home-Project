@@ -1,9 +1,92 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Campaign = require('../models/Campaign');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { auth, requireRole } = require('../middleware/auth');
+
+// Get sales dashboard stats (for sales person)
+router.get('/sales-dashboard', auth, requireRole('sales_person'), async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        // 1. Get user's campaigns
+        const campaigns = await Campaign.find({ salesPerson: userId, status: 'active' }).select('_id');
+        const campaignIds = campaigns.map(c => c._id);
+
+        if (campaignIds.length === 0) {
+            return res.json({
+                totalCommission: 0,
+                thisMonthCommission: 0,
+                campaignCount: 0,
+                orderCount: 0,
+                totalSales: 0,
+                recentOrders: []
+            });
+        }
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // 2. Aggregate Stats
+        const stats = await Order.aggregate([
+            { $match: { campaign: { $in: campaignIds }, deletedAt: null } },
+            {
+                $facet: {
+                    lifetime: [
+                        {
+                            $group: {
+                                _id: null,
+                                totalCommission: { $sum: '$commission.amount' },
+                                totalSales: { $sum: { $sum: '$items.totalPrice' } },
+                                orderCount: { $sum: 1 }
+                            }
+                        }
+                    ],
+                    thisMonth: [
+                        { $match: { createdAt: { $gte: startOfMonth } } },
+                        {
+                            $group: {
+                                _id: null,
+                                totalCommission: { $sum: '$commission.amount' }
+                            }
+                        }
+                    ],
+                    recentOrders: [
+                        { $sort: { createdAt: -1 } },
+                        { $limit: 5 },
+                        {
+                            $lookup: {
+                                from: 'campaigns',
+                                localField: 'campaign',
+                                foreignField: '_id',
+                                as: 'campaign'
+                            }
+                        },
+                        { $unwind: '$campaign' }
+                    ]
+                }
+            }
+        ]);
+
+        const result = stats[0];
+        const lifetime = result.lifetime[0] || { totalCommission: 0, totalSales: 0, orderCount: 0 };
+        const thisMonth = result.thisMonth[0] || { totalCommission: 0 };
+
+        res.json({
+            totalCommission: lifetime.totalCommission,
+            thisMonthCommission: thisMonth.totalCommission,
+            campaignCount: campaignIds.length,
+            orderCount: lifetime.orderCount,
+            totalSales: lifetime.totalSales,
+            recentOrders: result.recentOrders
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 // Get campaign analytics
 router.get('/campaigns', auth, requireRole('admin'), async (req, res) => {

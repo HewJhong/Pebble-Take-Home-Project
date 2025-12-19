@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const { Order, Campaign, User } = require('../models');
 const { auth, requireRole } = require('../middleware/auth');
@@ -14,8 +15,14 @@ router.get('/', async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
         const campaignId = req.query.campaign || '';
+        const searchTerm = req.query.search || '';
 
         const query = { deletedAt: null };
+
+        // Add search filter for product names
+        if (searchTerm) {
+            query['items.name'] = { $regex: searchTerm, $options: 'i' };
+        }
 
         // Sales person can only see orders from their campaigns
         if (req.user.role === 'sales_person') {
@@ -37,19 +44,59 @@ router.get('/', async (req, res) => {
             }
         } else if (campaignId) {
             // Admin: allow filtering by any campaign
-            query.campaign = campaignId;
+            query.campaign = new mongoose.Types.ObjectId(campaignId);
         }
 
+        if (req.user.role === 'sales_person' && campaignId) {
+            // We need to ensure the query.campaign is an ObjectId for aggregation
+            query.campaign = new mongoose.Types.ObjectId(campaignId);
+        }
+
+        const validSortFields = ['createdAt', 'total', 'commission'];
+        const sortBy = validSortFields.includes(req.query.sortBy) ? req.query.sortBy : 'createdAt';
+        const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+
+        // Determine sort field
+        let sortField = sortBy;
+        if (sortBy === 'total') sortField = 'totalAmount';
+        if (sortBy === 'commission') sortField = 'commission.amount';
+
+        const pipeline = [
+            { $match: query },
+            // Calculate total amount for sorting
+            { $addFields: { totalAmount: { $sum: '$items.totalPrice' } } },
+            { $sort: { [sortField]: sortOrder } },
+            { $skip: skip },
+            { $limit: limit },
+            // Populate campaign
+            {
+                $lookup: {
+                    from: 'campaigns',
+                    localField: 'campaign',
+                    foreignField: '_id',
+                    as: 'campaign'
+                }
+            },
+            { $unwind: '$campaign' },
+            // Populate sales person
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'campaign.salesPerson',
+                    foreignField: '_id',
+                    as: 'campaign.salesPerson'
+                }
+            },
+            {
+                $unwind: {
+                    path: '$campaign.salesPerson',
+                    preserveNullAndEmptyArrays: true
+                }
+            }
+        ];
+
         const [orders, total] = await Promise.all([
-            Order.find(query)
-                .populate({
-                    path: 'campaign',
-                    select: 'title salesPerson',
-                    populate: { path: 'salesPerson', select: 'name' }
-                })
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit),
+            Order.aggregate(pipeline),
             Order.countDocuments(query)
         ]);
 

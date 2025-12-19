@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeftIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { campaignApi, orderApi } from '../../services/api';
 import Modal from '../../components/ui/Modal';
+import OrdersTable from '../../components/orders/OrdersTable';
 import { useAuth } from '../../context/AuthContext';
 
 export default function CampaignDetail() {
@@ -16,6 +17,13 @@ export default function CampaignDetail() {
     const [showEditModal, setShowEditModal] = useState(false);
     const [editForm, setEditForm] = useState({});
     const [saving, setSaving] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    // Add Order Modal state
+    const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
+    const [newOrderItems, setNewOrderItems] = useState([{ name: '', quantity: 1, basePrice: 0, totalPrice: 0 }]);
+    const [addOrderSaving, setAddOrderSaving] = useState(false);
 
     const backPath = user?.role === 'admin' ? '/admin/campaigns' : '/sales/campaigns';
 
@@ -67,10 +75,78 @@ export default function CampaignDetail() {
         }
     };
 
-    const totalSales = orders.reduce((sum, o) =>
-        sum + o.items.reduce((s, i) => s + i.totalPrice, 0), 0
-    );
-    const totalCommission = orders.reduce((sum, o) => sum + (o.commission?.amount || 0), 0);
+    const handleDeleteClick = () => {
+        setIsDeleteModalOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        try {
+            setDeleting(true);
+            await campaignApi.delete(id);
+            navigate('/admin/campaigns', { state: { message: 'Campaign deleted successfully.' } });
+        } catch (err) {
+            setError(err.message);
+            setIsDeleteModalOpen(false);
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+
+
+    const totalSales = campaign?.stats?.totalSales || 0;
+    const totalCommission = campaign?.stats?.totalCommission || 0;
+
+    const handleAddOrderClick = () => {
+        setNewOrderItems([{ name: '', quantity: 1, basePrice: 0, totalPrice: 0 }]);
+        setIsAddOrderModalOpen(true);
+    };
+
+    const handleItemChange = (index, field, value) => {
+        const items = [...newOrderItems];
+        items[index][field] = value;
+
+        if (field === 'quantity' || field === 'basePrice') {
+            items[index].totalPrice = (items[index].quantity || 0) * (items[index].basePrice || 0);
+        }
+
+        setNewOrderItems(items);
+    };
+
+    const handleAddItem = () => {
+        setNewOrderItems([...newOrderItems, { name: '', quantity: 1, basePrice: 0, totalPrice: 0 }]);
+    };
+
+    const handleRemoveItem = (index) => {
+        if (newOrderItems.length === 1) return;
+        const items = newOrderItems.filter((_, i) => i !== index);
+        setNewOrderItems(items);
+    };
+
+    const calculateTotal = () => {
+        return newOrderItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+    };
+
+    const handleSubmitOrder = async (e) => {
+        e.preventDefault();
+        setAddOrderSaving(true);
+        try {
+            const formattedItems = newOrderItems.map(item => ({
+                ...item,
+                totalPrice: item.quantity * item.basePrice
+            }));
+            await orderApi.create({
+                campaign: id,
+                items: formattedItems
+            });
+            setIsAddOrderModalOpen(false);
+            fetchCampaign();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setAddOrderSaving(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -103,7 +179,10 @@ export default function CampaignDetail() {
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">{campaign?.title}</h1>
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            <span className="text-gray-600">{campaign?.salesPerson?.name}</span>
+                            <span className="text-gray-600">
+                                <span className="font-medium text-gray-500 mr-1">Sales Person:</span>
+                                {campaign?.salesPerson?.name}
+                            </span>
                             <span className="text-gray-300">•</span>
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${campaign?.socialMedia === 'facebook'
                                 ? 'bg-blue-100 text-blue-800'
@@ -121,8 +200,27 @@ export default function CampaignDetail() {
                             </span>
                             {(() => {
                                 const now = new Date();
-                                const isExpired = campaign?.endDate && new Date(campaign.endDate) < now;
-                                const isNotStarted = campaign?.startDate && new Date(campaign.startDate) > now;
+
+                                // If there's no end date, the campaign only lasts for a single day (the start date)
+                                // So the end date becomes the start date
+                                const effectiveEndDate = campaign?.endDate || campaign?.startDate;
+
+                                // For end date, we want to check if the entire day has passed
+                                // So we compare against the end of the end date (23:59:59)
+                                const endOfEndDate = effectiveEndDate ? new Date(effectiveEndDate) : null;
+                                if (endOfEndDate) {
+                                    endOfEndDate.setHours(23, 59, 59, 999);
+                                }
+
+                                // For start date, we compare against the start of the day (00:00:00)
+                                const startOfStartDate = campaign?.startDate ? new Date(campaign.startDate) : null;
+                                if (startOfStartDate) {
+                                    startOfStartDate.setHours(0, 0, 0, 0);
+                                }
+
+                                const isExpired = endOfEndDate && now > endOfEndDate;
+                                const isNotStarted = startOfStartDate && now < startOfStartDate;
+
                                 const statusClass = isExpired ? 'bg-gray-100 text-gray-500' : isNotStarted ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700';
                                 const statusLabel = isExpired ? 'Ended' : isNotStarted ? 'Scheduled' : 'Active';
                                 return (
@@ -194,52 +292,21 @@ export default function CampaignDetail() {
 
             {/* Orders Table */}
             <div className="card p-0 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200">
+                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                     <h2 className="text-lg font-medium text-gray-900">Orders</h2>
+                    <button
+                        onClick={handleAddOrderClick}
+                        className="btn-primary text-sm py-2 px-3 flex items-center gap-1"
+                    >
+                        <PlusIcon className="h-4 w-4" />
+                        Add Order
+                    </button>
                 </div>
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {orders.length === 0 ? (
-                            <tr>
-                                <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
-                                    No orders yet
-                                </td>
-                            </tr>
-                        ) : (
-                            orders.map((order) => (
-                                <tr key={order._id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {new Date(order.createdAt).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-sm text-gray-900">
-                                            {order.items.map(i => `${i.name} ×${i.quantity}`).join(', ')}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {formatCurrency(order.items.reduce((s, i) => s + i.totalPrice, 0))}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="text-sm font-medium text-green-600">
-                                            {formatCurrency(order.commission?.amount)}
-                                        </span>
-                                        <span className="text-xs text-gray-500 ml-1">
-                                            ({order.commission?.rateSnapshot}%)
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                <OrdersTable
+                    orders={orders}
+                    showCampaignColumn={false}
+                    onRefresh={fetchCampaign}
+                />
             </div>
 
             {/* Edit Campaign Modal */}
@@ -348,6 +415,170 @@ export default function CampaignDetail() {
                         </button>
                     </div>
                 </div>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={isDeleteModalOpen}
+                onClose={() => !deleting && setIsDeleteModalOpen(false)}
+                title="Delete Campaign"
+            >
+                <div className="space-y-4">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <p className="text-red-800 font-medium">⚠️ This action cannot be undone</p>
+                        <p className="text-red-700 text-sm mt-1">
+                            Deleting this campaign will remove all associated orders and commission records.
+                        </p>
+                    </div>
+
+                    {/* Deletion Impact */}
+                    <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Deletion Impact:</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                                <div className="text-xs text-gray-500">Orders Affected</div>
+                                <div className="text-2xl font-semibold text-gray-900">{orders.length}</div>
+                            </div>
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                                <div className="text-xs text-gray-500">Commission Removed</div>
+                                <div className="text-2xl font-semibold text-red-600">{formatCurrency(totalCommission)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={confirmDelete}
+                            disabled={deleting}
+                            className="btn-red bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex-1 disabled:opacity-50"
+                        >
+                            {deleting ? 'Deleting...' : 'Delete Campaign'}
+                        </button>
+                        <button
+                            onClick={() => setIsDeleteModalOpen(false)}
+                            disabled={deleting}
+                            className="btn-secondary flex-1"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Danger Zone - Admins Only */}
+            {
+                user?.role === 'admin' && (
+                    <div className="mt-8 border-t border-gray-200 pt-8">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                            <h3 className="text-lg font-medium text-red-800">Danger Zone</h3>
+                            <p className="mt-1 text-sm text-red-600 mb-4">
+                                Deleting this campaign will also remove all associated orders and commissions. This action cannot be undone.
+                            </p>
+                            <button
+                                onClick={handleDeleteClick}
+                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow-sm transition-colors text-sm font-medium"
+                            >
+                                Delete Campaign
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+            {/* Add Order Modal */}
+            <Modal
+                isOpen={isAddOrderModalOpen}
+                onClose={() => setIsAddOrderModalOpen(false)}
+                title="Add New Order"
+                size="xl"
+            >
+                <form onSubmit={handleSubmitOrder} className="space-y-4">
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        {newOrderItems.map((item, index) => (
+                            <div key={index} className="grid grid-cols-12 gap-2 items-start">
+                                <div className="col-span-6">
+                                    <input
+                                        type="text"
+                                        placeholder="Product Name"
+                                        value={item.name}
+                                        onChange={(e) => handleItemChange(index, 'name', e.target.value)}
+                                        className="input w-full"
+                                        required
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        placeholder="Qty"
+                                        value={item.quantity}
+                                        onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value) || 0)}
+                                        className="input w-full"
+                                        required
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="Price"
+                                        value={item.basePrice}
+                                        onChange={(e) => handleItemChange(index, 'basePrice', parseFloat(e.target.value) || 0)}
+                                        className="input w-full"
+                                        required
+                                    />
+                                </div>
+                                <div className="col-span-1 text-sm text-gray-600 pt-2 text-center">
+                                    {formatCurrency(item.totalPrice || 0).replace('RM ', '')}
+                                </div>
+                                <div className="col-span-1 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveItem(index)}
+                                        className="text-red-500 hover:text-red-700 p-1"
+                                        title="Remove item"
+                                        disabled={newOrderItems.length === 1}
+                                    >
+                                        <TrashIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleAddItem}
+                        className="mt-2 text-sm text-primary-600 hover:underline flex items-center gap-1"
+                    >
+                        <PlusIcon className="h-4 w-4" />
+                        Add Item
+                    </button>
+
+                    <div className="border-t pt-4">
+                        <div className="flex justify-between text-sm">
+                            <span className="font-medium">Order Total:</span>
+                            <span className="font-bold">{formatCurrency(calculateTotal())}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button
+                            type="button"
+                            onClick={() => setIsAddOrderModalOpen(false)}
+                            className="btn-secondary"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={addOrderSaving}
+                            className="btn-primary"
+                        >
+                            {addOrderSaving ? 'Saving...' : 'Save'}
+                        </button>
+                    </div>
+                </form>
             </Modal>
         </div>
     );

@@ -149,8 +149,9 @@ export default function ActivityLog() {
             {pagination.pages > 1 && (
                 <div className="mt-4">
                     <Pagination
-                        currentPage={pagination.page}
-                        totalPages={pagination.pages}
+                        page={pagination.page}
+                        pages={pagination.pages}
+                        total={pagination.total}
                         onPageChange={(page) => setPagination({ ...pagination, page })}
                     />
                 </div>

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
@@ -13,7 +14,26 @@ connectDB();
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174'], credentials: true }));
+
+// CORS Configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins in production, or customize as needed
+    }
+  },
+  credentials: true
+}));
 app.use(cookieParser());
 
 // Routes
@@ -35,9 +55,19 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/activities', activityRoutes);
 
-app.get('/', (req, res) => {
+// Serve static files from the React app in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
     res.send('API is running...');
-});
+  });
+}
 
 // Start Server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { campaignApi, orderApi } from '../../services/api';
+import { analyticsApi } from '../../services/api';
 
 export default function SalesDashboard() {
     const { user } = useAuth();
@@ -12,45 +12,15 @@ export default function SalesDashboard() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch user's campaigns
-                const campaignData = await campaignApi.list({ limit: 100 });
-                const campaigns = campaignData.campaigns;
-                const campaignIds = campaigns.map(c => c._id);
-
-                // Fetch orders for user's campaigns
-                let allOrders = [];
-                for (const id of campaignIds) {
-                    try {
-                        const ordersData = await orderApi.list({ campaign: id, limit: 100 });
-                        allOrders = [...allOrders, ...ordersData.orders];
-                    } catch (e) {
-                        console.error('Failed to fetch orders for campaign', id);
-                    }
-                }
-
-                // Calculate metrics
-                const totalCommission = allOrders.reduce((sum, o) => sum + (o.commission?.amount || 0), 0);
-                const totalSales = allOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.totalPrice, 0), 0);
-
-                // Calculate this month's commission
-                const now = new Date();
-                const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-                const thisMonthCommission = allOrders
-                    .filter(o => new Date(o.createdAt) >= thisMonthStart)
-                    .reduce((sum, o) => sum + (o.commission?.amount || 0), 0);
-
-                // Sort by date, get recent 5
-                const sortedOrders = allOrders.sort((a, b) =>
-                    new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
-
+                const data = await analyticsApi.getSalesDashboard();
                 setMetrics({
-                    totalCommission,
-                    thisMonthCommission,
-                    campaignCount: campaigns.length,
-                    orderCount: allOrders.length,
-                    totalSales
+                    totalCommission: data.totalCommission,
+                    thisMonthCommission: data.thisMonthCommission,
+                    campaignCount: data.campaignCount,
+                    orderCount: data.orderCount,
+                    totalSales: data.totalSales
                 });
-                setRecentOrders(sortedOrders);
+                setRecentOrders(data.recentOrders);
             } catch (err) {
                 console.error('Failed to load dashboard data:', err);
             } finally {

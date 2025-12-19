@@ -102,3 +102,32 @@
 3. ~~Sales person order list interface. We should prioritize the item name, then only the campaign name. Change the order and add filters and sorting for the list.~~ ✅ Reordered columns: Items | Campaign | Qty | Unit Price | Total | Commission | Actions. Added sorting dropdown with Newest, Oldest, Total, Commission options.
 
 4. ~~Modify the hover effect for all the charts, in admin page dashboard, analytics, and sales person analytics. I don't want the gray background to be show this obvious, make it less opaque.~~ ✅ Added `cursor={{ fill: 'rgba(0, 0, 0, 0.04)' }}` to all chart Tooltips in AdminDashboard, Analytics, and SalesAnalytics.
+
+5. ~~In the campaign details page, allow users to delete the campaign. Place it to avoid mis-clicks.~~ ✅ Added "Danger Zone" at the bottom of Campaign Detail page for admins. Includes red "Delete Campaign" button and confirmation modal.
+
+6. ~~Remove delete button from campaign list.~~ ✅ Removed "Actions" column from Campaign List. Deletion is now exclusively via the details page "Danger Zone".
+
+7. ~~Consolidate campaign pages and fix order filters.~~ ✅ Merged `MyCampaigns` into `CampaignList` to serve both Admin and Sales roles. Fixed Order List sorting by implementing MongoDB aggregation pipeline in backend.
+
+8. ~~Fix incorrect campaign details (stats).~~ ✅ Fixed bug where campaign details page showed incorrect totals because it only calculated from the first 100 orders. Updated backend to return aggregated stats for single campaign.
+
+9. ~~Fix Sales Dashboard incorrect values.~~ ✅ Fixed issue where dashboard values were 0 or incorrect. Root cause was strict casting in MongoDB aggregation. Implemented a dedicated backend endpoint for dashboard stats to improve performance and accuracy.
+
+10. ~~Improve Campaign Deletion UX.~~ ✅ Added explicit warning about commission deletion in Danger Zone. Implemented notification banner (toast) on Campaign List page shown after successful deletion redirection.
+
+11. ~~Show Effective Date and Increment in User Modal.~~ ✅ Updated User Detail Modal to display the effective date of the current commission rate and the calculated increment/decrement from the previous rate.
+
+12. ~~Implement Add Order in Campaign Detail.~~ ✅ Added "Add Order" button to Campaign Detail page. Implemented modal with dynamic item list to manually create orders. Verified logic creates orders and updates stats.
+
+# TODO
+1. ~~In the campaigns page, directly showing the sales person name without the "Sales Person" label is sometimes confusing, fix it by including the label.~~ ✅ Added "Sales Person:" label to header. Also standardized "Add Order" modal UI to match OrderList.
+
+# TODO
+1. ~~Remember to add pagination to the Activity Log page to avoid performance issues.~~ ✅ Fixed Pagination component props mismatch (`currentPage`→`page`, `totalPages`→`pages`, added `total` prop).
+
+2. ~~Also, if we have a lot of orders, how do we ensure that the calculations are accurate and fast?~~ ✅ Answered: Current MongoDB aggregation pipeline approach is adequate for small-to-medium scale (<100k orders). For larger scale, consider pre-computed aggregates on Campaign model.
+
+3. ~~In the campaign detail page, there is an order list, I think it would be easier if the admin can edit the items right from there. Can you add the feature to edit and delete from the orders page to this page as well?~~ ✅ Created reusable `OrdersTable` component with edit/delete modals. Integrated into both `OrderList.jsx` and `CampaignDetail.jsx`. Admin can now edit/delete orders directly from campaign detail page.
+
+# TODO
+1. If the date of the campaign has been changed, it should update the tags for scheduled, active or inactive.

@@ -1,0 +1,27 @@
+{
+  "name": "pebbletech-sales-system",
+  "version": "1.0.0",
+  "description": "Sales System with Campaign Management",
+  "scripts": {
+    "install:server": "cd src/server && npm install",
+    "install:client": "cd src/client && npm install",
+    "install:all": "npm run install:server && npm run install:client",
+    "build": "cd src/client && npm run build",
+    "start": "cd src/server && npm start",
+    "dev:server": "cd src/server && npm run dev",
+    "dev:client": "cd src/client && npm run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "sales",
+    "campaign-management",
+    "express",
+    "react",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "ISC"
+}

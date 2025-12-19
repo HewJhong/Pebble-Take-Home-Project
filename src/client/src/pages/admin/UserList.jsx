@@ -5,8 +5,10 @@ import { userApi } from '../../services/api';
 import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useAuth } from '../../context/AuthContext';
 
 export default function UserList() {
+    const { user: currentUser } = useAuth();
     const [users, setUsers] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
     const [loading, setLoading] = useState(true);
@@ -131,6 +133,13 @@ export default function UserList() {
     };
 
     const handleDeleteClick = async (user) => {
+        // Prevent admins from deleting themselves
+        if (currentUser && user._id === currentUser._id) {
+            setError('You cannot delete your own account. Please ask another admin to do this.');
+            setTimeout(() => setError(''), 5000);
+            return;
+        }
+
         // For admin users, no need to check impact (no campaigns/commissions)
         if (user.role === 'admin') {
             setDeleteModal({ isOpen: true, user, impact: { isAdmin: true }, loading: false });
@@ -329,8 +338,13 @@ export default function UserList() {
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleDeleteClick(user); }}
-                                                    className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
-                                                    title="Delete user"
+                                                    disabled={currentUser && user._id === currentUser._id}
+                                                    className={`p-1 rounded transition-colors ${
+                                                        currentUser && user._id === currentUser._id
+                                                            ? 'text-gray-300 cursor-not-allowed'
+                                                            : 'text-red-600 hover:text-red-900 hover:bg-red-50'
+                                                    }`}
+                                                    title={currentUser && user._id === currentUser._id ? "You cannot delete your own account" : "Delete user"}
                                                 >
                                                     <TrashIcon className="h-5 w-5" />
                                                 </button>
@@ -549,10 +563,26 @@ export default function UserList() {
                         {detailModal.user.role === 'sales_person' && (
                             <div className="bg-gray-50 p-4 rounded-lg">
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-gray-500 text-sm">Current Commission Rate</p>
-                                    <span className={`inline-flex px-2.5 py-1 text-sm font-semibold rounded-md ${getCommissionColor(detailModal.user.commissionRate)}`}>
-                                        {detailModal.user.commissionRate}%
-                                    </span>
+                                    <div>
+                                        <p className="text-gray-500 text-sm">Current Commission Rate</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                            Effective: {new Date(
+                                                detailModal.user.commissionHistory?.length > 0
+                                                    ? detailModal.user.commissionHistory[detailModal.user.commissionHistory.length - 1].changedAt
+                                                    : detailModal.user.createdAt
+                                            ).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className={`inline-flex px-2.5 py-1 text-sm font-semibold rounded-md ${getCommissionColor(detailModal.user.commissionRate)}`}>
+                                            {detailModal.user.commissionRate}%
+                                        </span>
+                                        {getCommissionDelta(detailModal.user) && (
+                                            <div className={`text-xs font-medium mt-1 ${getCommissionDelta(detailModal.user).startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                                                {getCommissionDelta(detailModal.user)}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 {detailModal.user.commissionHistory?.length > 0 && (
                                     <div>
@@ -586,7 +616,13 @@ export default function UserList() {
                                     setDetailModal({ isOpen: false, user: null });
                                     handleDeleteClick(detailModal.user);
                                 }}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                disabled={currentUser && detailModal.user._id === currentUser._id}
+                                className={`px-4 py-2 rounded-lg transition-colors ${
+                                    currentUser && detailModal.user._id === currentUser._id
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-red-600 text-white hover:bg-red-700'
+                                }`}
+                                title={currentUser && detailModal.user._id === currentUser._id ? "You cannot delete your own account" : "Delete user"}
                             >
                                 Delete User
                             </button>

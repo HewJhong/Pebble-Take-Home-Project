@@ -34,7 +34,7 @@ export default function LoginPage() {
             <div className="max-w-md w-full space-y-8">
                 <div>
                     <h1 className="text-center text-3xl font-bold text-gray-900">
-                        Sales Commission System
+                        CommissionFlow
                     </h1>
                     <h2 className="mt-2 text-center text-lg text-gray-600">
                         Sign in to your account

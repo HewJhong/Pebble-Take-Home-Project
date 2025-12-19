@@ -97,6 +97,8 @@ router.get('/', async (req, res) => {
     }
 });
 
+const mongoose = require('mongoose');
+
 // GET /api/campaigns/:id - Get single campaign
 router.get('/:id', async (req, res) => {
     try {
@@ -113,7 +115,30 @@ router.get('/:id', async (req, res) => {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        res.json(campaign);
+        // Get stats
+        const stats = await Order.aggregate([
+            {
+                $match: {
+                    campaign: new mongoose.Types.ObjectId(req.params.id),
+                    deletedAt: null
+                }
+            },
+            {
+                $group: {
+                    _id: '$campaign',
+                    orderCount: { $sum: 1 },
+                    totalSales: { $sum: { $sum: '$items.totalPrice' } },
+                    totalCommission: { $sum: '$commission.amount' }
+                }
+            }
+        ]);
+
+        const campaignStats = stats.length > 0 ? stats[0] : { orderCount: 0, totalSales: 0, totalCommission: 0 };
+
+        res.json({
+            ...campaign.toObject(),
+            stats: campaignStats
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

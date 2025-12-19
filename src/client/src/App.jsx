@@ -11,7 +11,6 @@ import OrderList from './pages/admin/OrderList';
 import Analytics from './pages/admin/Analytics';
 import ActivityLog from './pages/admin/ActivityLog';
 import SalesDashboard from './pages/sales/SalesDashboard';
-import MyCampaigns from './pages/sales/MyCampaigns';
 import CommissionView from './pages/sales/CommissionView';
 import SalesAnalytics from './pages/sales/SalesAnalytics';
 import './index.css';
@@ -112,7 +111,7 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['sales_person']}>
                 <MainLayout>
-                  <MyCampaigns />
+                  <CampaignList />
                 </MainLayout>
               </ProtectedRoute>
             }

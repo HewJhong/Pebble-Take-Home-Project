@@ -14,8 +14,8 @@ export const useRole = () => {
         canCreateOrder: user?.role === 'admin' || user?.role === 'sales_person',
         canEdit: user?.role === 'admin',
         canDelete: user?.role === 'admin',
-        canEditOrder: user?.role === 'admin' || user?.role === 'sales_person',
-        canDeleteOrder: user?.role === 'admin' || user?.role === 'sales_person',
+        canEditOrder: user?.role === 'admin',
+        canDeleteOrder: user?.role === 'admin',
         canViewUsers: user?.role === 'admin',
         canViewActivityLog: user?.role === 'admin',
     };

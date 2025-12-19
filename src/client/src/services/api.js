@@ -72,6 +72,7 @@ export const dashboardApi = {
 export const analyticsApi = {
     campaigns: () => fetchApi('/analytics/campaigns'),
     myCampaigns: () => fetchApi('/analytics/my-campaigns'),
+    getSalesDashboard: () => fetchApi('/analytics/sales-dashboard'),
     salesPersons: () => fetchApi('/analytics/sales-persons'),
     summary: () => fetchApi('/analytics/summary'),
     aiSummary: () => fetchApi('/analytics/ai-summary'),

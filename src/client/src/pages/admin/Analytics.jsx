@@ -11,6 +11,8 @@ export default function Analytics() {
     const [selectedCampaigns, setSelectedCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [salesPersonSortBy, setSalesPersonSortBy] = useState('totalSales');
+    const [salesPersonSortOrder, setSalesPersonSortOrder] = useState('desc');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -227,6 +229,33 @@ export default function Analytics() {
 
                     {/* Sales Person Performance */}
                     <Tab.Panel>
+                        {/* Sort Controls */}
+                        <div className="card mb-4">
+                            <div className="flex items-center gap-4">
+                                <label className="text-sm font-medium text-gray-700">Sort by:</label>
+                                <select
+                                    value={`${salesPersonSortBy}-${salesPersonSortOrder}`}
+                                    onChange={(e) => {
+                                        const [sortBy, sortOrder] = e.target.value.split('-');
+                                        setSalesPersonSortBy(sortBy);
+                                        setSalesPersonSortOrder(sortOrder);
+                                    }}
+                                    className="input w-64"
+                                >
+                                    <option value="totalSales-desc">Total Sales (High to Low)</option>
+                                    <option value="totalSales-asc">Total Sales (Low to High)</option>
+                                    <option value="totalCommission-desc">Commission (High to Low)</option>
+                                    <option value="totalCommission-asc">Commission (Low to High)</option>
+                                    <option value="orderCount-desc">Orders (High to Low)</option>
+                                    <option value="orderCount-asc">Orders (Low to High)</option>
+                                    <option value="campaignCount-desc">Campaigns (High to Low)</option>
+                                    <option value="campaignCount-asc">Campaigns (Low to High)</option>
+                                    <option value="efficiencyRatio-desc">Efficiency (High to Low)</option>
+                                    <option value="efficiencyRatio-asc">Efficiency (Low to High)</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="card overflow-hidden p-0">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
@@ -241,7 +270,19 @@ export default function Analytics() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {salesPersonData.salesPersons.map((sp) => (
+                                    {[...salesPersonData.salesPersons].sort((a, b) => {
+                                        const aVal = salesPersonSortBy === 'totalSales' ? a.metrics.totalSales :
+                                                     salesPersonSortBy === 'totalCommission' ? a.metrics.totalCommission :
+                                                     salesPersonSortBy === 'orderCount' ? a.metrics.orderCount :
+                                                     salesPersonSortBy === 'campaignCount' ? a.metrics.campaignCount :
+                                                     parseFloat(a.metrics.efficiencyRatio);
+                                        const bVal = salesPersonSortBy === 'totalSales' ? b.metrics.totalSales :
+                                                     salesPersonSortBy === 'totalCommission' ? b.metrics.totalCommission :
+                                                     salesPersonSortBy === 'orderCount' ? b.metrics.orderCount :
+                                                     salesPersonSortBy === 'campaignCount' ? b.metrics.campaignCount :
+                                                     parseFloat(b.metrics.efficiencyRatio);
+                                        return salesPersonSortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+                                    }).map((sp) => (
                                         <tr key={sp._id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4">
                                                 <div className="text-sm font-medium text-gray-900">{sp.name}</div>

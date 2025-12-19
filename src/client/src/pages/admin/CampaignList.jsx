@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { campaignApi, userApi } from '../../services/api';
 import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useRole } from '../../hooks/useRole';
 
 export default function CampaignList() {
     const navigate = useNavigate();
@@ -19,6 +20,18 @@ export default function CampaignList() {
     const [typeFilter, setTypeFilter] = useState('');
     const [sortBy, setSortBy] = useState('createdAt');
     const [sortOrder, setSortOrder] = useState('desc');
+    const { isAdmin, isSales } = useRole();
+    const location = useLocation();
+    const [notification, setNotification] = useState(null);
+
+    useEffect(() => {
+        if (location.state?.message) {
+            setNotification(location.state.message);
+            window.history.replaceState({}, document.title);
+            const timer = setTimeout(() => setNotification(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [location]);
 
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -121,16 +134,7 @@ export default function CampaignList() {
         }
     };
 
-    const handleDelete = async (campaign) => {
-        if (!window.confirm(`Delete "${campaign.title}"?\n\nWarning: All orders and commissions under this campaign will also be deleted.`)) return;
 
-        try {
-            await campaignApi.delete(campaign._id);
-            fetchCampaigns();
-        } catch (err) {
-            setError(err.message);
-        }
-    };
 
     const getPlatformBadge = (platform) => {
         return platform === 'facebook'
@@ -151,8 +155,26 @@ export default function CampaignList() {
 
     const getStatusBadge = (campaign) => {
         const now = new Date();
-        const isExpired = campaign.endDate && new Date(campaign.endDate) < now;
-        const isNotStarted = campaign.startDate && new Date(campaign.startDate) > now;
+
+        // If there's no end date, the campaign only lasts for a single day (the start date)
+        // So the end date becomes the start date
+        const effectiveEndDate = campaign.endDate || campaign.startDate;
+
+        // For end date, we want to check if the entire day has passed
+        // So we compare against the end of the end date (23:59:59)
+        const endOfEndDate = effectiveEndDate ? new Date(effectiveEndDate) : null;
+        if (endOfEndDate) {
+            endOfEndDate.setHours(23, 59, 59, 999);
+        }
+
+        // For start date, we compare against the start of the day (00:00:00)
+        const startOfStartDate = campaign.startDate ? new Date(campaign.startDate) : null;
+        if (startOfStartDate) {
+            startOfStartDate.setHours(0, 0, 0, 0);
+        }
+
+        const isExpired = endOfEndDate && now > endOfEndDate;
+        const isNotStarted = startOfStartDate && now < startOfStartDate;
 
         if (isExpired) {
             return { class: 'bg-gray-100 text-gray-500', label: 'Ended' };
@@ -163,13 +185,23 @@ export default function CampaignList() {
     };
 
     return (
-        <div>
+        <div className="space-y-6">
+            {notification && (
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative" role="alert">
+                    <span className="block sm:inline">{notification}</span>
+                    <span className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setNotification(null)}>
+                        <svg className="fill-current h-6 w-6 text-green-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" /></svg>
+                    </span>
+                </div>
+            )}
             <div className="sm:flex sm:items-center sm:justify-between mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Campaigns</h1>
-                <button onClick={openAddModal} className="btn-primary">
-                    <PlusIcon className="h-5 w-5 mr-1" />
-                    New Campaign
-                </button>
+                <h1 className="text-2xl font-bold text-gray-900">{isSales ? '📢 My Campaigns' : 'Campaigns'}</h1>
+                {isAdmin && (
+                    <button onClick={openAddModal} className="btn-primary">
+                        <PlusIcon className="h-5 w-5 mr-1" />
+                        New Campaign
+                    </button>
+                )}
             </div>
 
             {error && (
@@ -230,28 +262,27 @@ export default function CampaignList() {
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campaign</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Person</th>
+                            {isAdmin && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Person</th>}
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Sales</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {loading ? (
                             <tr>
-                                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                                <td colSpan={isAdmin ? "5" : "4"} className="px-6 py-4 text-center text-gray-500">Loading...</td>
                             </tr>
                         ) : campaigns.length === 0 ? (
                             <tr>
-                                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No campaigns found</td>
+                                <td colSpan={isAdmin ? "5" : "4"} className="px-6 py-4 text-center text-gray-500">No campaigns found</td>
                             </tr>
                         ) : (
                             campaigns.map((campaign) => (
                                 <tr
                                     key={campaign._id}
                                     className="hover:bg-gray-50 cursor-pointer group"
-                                    onClick={() => navigate(`/admin/campaigns/${campaign._id}`)}
+                                    onClick={() => navigate(isSales ? `/sales/campaigns/${campaign._id}` : `/admin/campaigns/${campaign._id}`)}
                                     title="Click to view campaign orders"
                                 >
                                     <td className="px-6 py-4">
@@ -270,9 +301,11 @@ export default function CampaignList() {
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {campaign.salesPerson?.name || 'Unknown'}
-                                    </td>
+                                    {isAdmin && (
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {campaign.salesPerson?.name || 'Unknown'}
+                                        </td>
+                                    )}
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                             {campaign.stats?.orderCount || 0}
@@ -283,15 +316,6 @@ export default function CampaignList() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className="text-sm font-medium text-green-600">{formatCurrency(campaign.stats?.totalCommission)}</span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDelete(campaign); }}
-                                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
-                                            title="Delete campaign"
-                                        >
-                                            <TrashIcon className="h-5 w-5" />
-                                        </button>
                                     </td>
                                 </tr>
                             ))
